@@ -1,0 +1,66 @@
+# IDEs and System Files
+.vscode/
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+thumbs.db
+
+# Dependencies
+node_modules/
+jspm_packages/
+vendor/
+.pnp
+.pnp.js
+
+# Environment and Secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+*.key
+
+# Build and Output
+dist/
+build/
+out/
+.next/
+.astro/
+bin/
+obj/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Debug and Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+*.log
+.pnpm-debug.log*
+
+# Databases and Cache
+.turbo/
+.cache/
+.eslintcache
+*.db
+*.sqlite
+
+# Python Specific
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+
+# Go Specific
+*.test
+*.prof

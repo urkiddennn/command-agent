@@ -1,0 +1,116 @@
+{
+  "name": "cohere-agent",
+  "displayName": "Cohere Agent",
+  "description": "AI Agent powered by Cohere Command R+",
+  "version": "0.0.1",
+  "publisher": "antigravity",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "cohere-agent-explorer",
+          "title": "Cohere Agent",
+          "icon": "media/icon.svg"
+        }
+      ],
+      "panel": [
+        {
+          "id": "cohere-agent-panel",
+          "title": "Cohere Agent",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "cohere-agent-explorer": [
+        {
+          "type": "webview",
+          "id": "cohere-agent-sidebar",
+          "name": "Chat",
+          "visibility": "visible",
+          "icon": "media/icon.svg"
+        }
+      ],
+      "explorer": [
+        {
+          "type": "webview",
+          "id": "cohere-agent-explorer-view",
+          "name": "Cohere Agent",
+          "visibility": "visible",
+          "icon": "media/icon.svg"
+        }
+      ],
+      "cohere-agent-panel": [
+        {
+          "type": "webview",
+          "id": "cohere-agent-panel-view",
+          "name": "Cohere Agent Chat",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "cohere-agent.ask",
+        "title": "Cohere Agent: Ask something"
+      }
+    ],
+    "configuration": {
+      "title": "Cohere Agent",
+      "properties": {
+        "cohere-agent.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Cohere API Key"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "npm run check-types && node esbuild.js && npm run build-webview",
+    "watch": "npm run check-types && npm run lint && node esbuild.js --watch",
+    "package": "npm run check-types && npm run lint && node esbuild.js --production && npm run build-webview",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src --ext ts",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run lint",
+    "test": "node ./out/test/runTest.js",
+    "build-webview": "vite build"
+  },
+  "devDependencies": {
+    "@types/node": "20.x",
+    "@types/react": "^18.2.15",
+    "@types/react-dom": "^18.2.7",
+    "@types/vscode": "^1.80.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "@vitejs/plugin-react": "^4.0.3",
+    "esbuild": "^0.18.11",
+    "eslint": "^8.45.0",
+    "typescript": "^5.1.6",
+    "vite": "^4.4.5"
+  },
+  "dependencies": {
+    "@types/react-syntax-highlighter": "^15.5.13",
+    "cohere-ai": "^7.20.0",
+    "lucide-react": "^0.263.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-markdown": "^10.1.0",
+    "react-syntax-highlighter": "^16.1.0"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}

@@ -2,8 +2,13 @@
   "name": "cohere-agent",
   "displayName": "Cohere Agent",
   "description": "AI Agent powered by Cohere Command R+",
-  "version": "0.0.1",
-  "publisher": "antigravity",
+  "version": "0.0.12",
+  "publisher": "RichardBanguiz",
+  "icon": "media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/urkiddennn/command-agent.git"
+  },
   "engines": {
     "vscode": "^1.80.0"
   },

@@ -64,3 +64,5 @@ ENV/
 # Go Specific
 *.test
 *.prof
+
+*.vsix

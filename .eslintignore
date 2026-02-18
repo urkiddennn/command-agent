@@ -1,0 +1,9 @@
+node_modules
+dist
+out
+webview
+package.json
+package-lock.json
+esbuild.js
+vite.config.ts
+*.js

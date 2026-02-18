@@ -391,6 +391,12 @@ Structure your final response with clear sections using Markdown:
                     tools: this.TOOLS as any,
                 };
 
+                // Debug: Log history to check for empty messages
+                console.log('CohereProvider (V2): Sending history to API:');
+                this.chatHistory.forEach((msg, idx) => {
+                    console.log(`  [${idx}] ${msg.role}: ${msg.content ? (typeof msg.content === 'string' ? msg.content.substring(0, 50) : '[Blocks]') : '(no content)'} ${msg.toolCalls ? `(ToolCalls: ${msg.toolCalls.length})` : ''}`);
+                });
+
                 if (isReasoningModel) {
                     streamParams.thinking = {
                         type: 'enabled',
@@ -464,12 +470,12 @@ Structure your final response with clear sections using Markdown:
                 }
 
                 // Add assistant response to history
-                this.chatHistory.push({
+                const assistantMsg: any = {
                     role: 'assistant',
-                    content: fullText, // V2 uses content string for text
-                    toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-                    toolPlan: fullThought // Store the full thought
-                });
+                    content: fullText || (toolCalls.length > 0 ? undefined : ' ')
+                };
+                if (toolCalls.length > 0) assistantMsg.toolCalls = toolCalls;
+                this.chatHistory.push(assistantMsg);
 
                 // Structured update for UI final state of this turn
                 onUpdate({
@@ -492,8 +498,38 @@ Structure your final response with clear sections using Markdown:
                         let result: string;
                         try {
                             const { name, arguments: paramsString } = call.function;
-                            debugLog(`CohereProvider (V2): Parsed tool call ${name}. Arg string length: ${paramsString.length}`);
-                            const parameters = JSON.parse(paramsString);
+                            debugLog(`CohereProvider (V2): Parsing tool call ${name}. Arg string length: ${paramsString.length}`);
+
+                            let parameters: any;
+                            try {
+                                parameters = JSON.parse(paramsString);
+                            } catch (parseError: any) {
+                                debugLog(`CohereProvider (V2): Standard JSON parse failed. Attempting sanitization...`);
+
+                                try {
+                                    // Robust attempt to fix unescaped newlines inside JSON string values
+                                    // This targets newlines found after a colon and quote, but before the next quote+comma or quote+bracket
+                                    let sanitized = paramsString;
+
+                                    // Heuristic: Multi-line strings in JSON from LLMs often look like:
+                                    // "content": "some
+                                    // code
+                                    // here",
+                                    // We look for everything between the opening quote of a value and the closing quote.
+                                    // This regex is a bit complex but captures the pattern of a JSON value string.
+                                    sanitized = sanitized.replace(/:(\s*)"([^"\\]*(?:\\.[^"\\]*)*)"/gs, (match: string, space: string, content: string) => {
+                                        // Replace literal newlines in the content part with \n
+                                        const fixedContent = content.replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+                                        return `:${space}"${fixedContent}"`;
+                                    });
+
+                                    parameters = JSON.parse(sanitized);
+                                    debugLog(`CohereProvider (V2): Sanitization successful.`);
+                                } catch (e2) {
+                                    console.error('CohereProvider (V2): JSON content causing error:', paramsString);
+                                    throw parseError; // Rethrow original error if sanitization fails
+                                }
+                            }
 
                             // Build a descriptive step label
                             let stepLabel = '';
@@ -613,29 +649,29 @@ Structure your final response with clear sections using Markdown:
                         }
 
                         // Add EACH tool result as an individual message (Strict V2 requirement)
-                        // Inject a strong hint to continue execution
                         this.chatHistory.push({
                             role: 'tool',
                             toolCallId: call.id,
                             content: [{
                                 type: 'text',
-                                text: JSON.stringify({
-                                    result,
-                                    system_instruction: "If there are more steps in the plan, continue immediately. Do not stop until the task is complete."
-                                })
+                                text: result
                             }]
                         });
                     }
 
                     if (planDetected) {
                         progressSteps.push({ label: '✓ Plan creation complete', type: 'tool' });
+                        // CRITICAL: Close the turn with an assistant message to follow V2 protocol
+                        this.chatHistory.push({
+                            role: 'assistant',
+                            content: "Technical plan created in `planning.md`. Please review the plan in the **Plan** tab and click **Process** to start implementation."
+                        });
                         onUpdate({
                             text: "Technical plan created in `planning.md`. Please review the plan in the **Plan** tab and click **Process** to start implementation.",
                             thought: fullThought,
                             progress: [...progressSteps],
                             isFinal: true
                         });
-                        // onPlanReady is called in the tool execution block
                         break;
                     }
 
@@ -663,38 +699,33 @@ Structure your final response with clear sections using Markdown:
 
             // Handle max iterations reached
             if (iterations >= maxIterations && !this._cancelled) {
+                const limitMsg = 'Reached maximum tool iterations. You can send another message to continue.';
                 progressSteps.push({ label: '⚠ Reached maximum iterations', type: 'tool' });
-                onUpdate({ text: lastFullText || 'Reached maximum tool iterations. You can send another message to continue.', thought: '', progress: [...progressSteps], isFinal: true });
+                this.chatHistory.push({ role: 'assistant', content: limitMsg });
+                onUpdate({ text: lastFullText || limitMsg, thought: '', progress: [...progressSteps], isFinal: true });
             }
 
             this._currentOnUpdate = null;
         } catch (error: any) {
             console.error('CohereProvider Agent Error:', error);
-            onUpdate({ text: `Error: ${error.message || 'Unknown API Error'}`, isFinal: true });
+            const errMsg = `Error: ${error.message || 'Unknown API Error'}`;
+            this.chatHistory.push({ role: 'assistant', content: errMsg });
+            onUpdate({ text: errMsg, isFinal: true });
         }
     }
 
     /**
      * Continues execution with the approved (and possibly edited) plan.
      */
-    async executePlan(plan: string, onUpdate: (data: { text: string; thought?: string; progress?: any[] }) => void) {
+    async executePlan(plan: string, onUpdate: (data: { text: string; thought?: string; progress?: any[]; isFinal?: boolean }) => void) {
         this._currentOnUpdate = onUpdate;
         this._cancelled = false;
 
-        // Add the approved plan to history as if the user said it (or as a system confirmation)
-        this.chatHistory.push({
-            role: 'user',
-            content: `I approve this plan. Proceed with execution:\n\n# Implementation Plan\n${plan}`
-        });
+        // Pass the full approved plan as the primary prompt to generateResponse.
+        // This avoids pushing a duplicate user message inside generateResponse.
+        const approvalPrompt = `I approve this plan. Switch to EXECUTION mode and follow the plan step-by-step using the provided tools. Proceed with execution:\n\n# Implementation Plan\n${plan}`;
 
-        // Add a system prompt to enforce execution mode
-        this.chatHistory.push({
-            role: 'system',
-            content: `The user has approved the plan. Switch to EXECUTION mode. Follow the plan step-by-step. Use the provided tools.`
-        });
-
-        // Call generateResponse with a dummy prompt to restart the loop
-        return this.generateResponse("Proceed with execution", "Execution", undefined, onUpdate, () => { });
+        return this.generateResponse(approvalPrompt, "Execution", undefined, onUpdate, () => { });
     }
 
     private async processMentions(prompt: string): Promise<string> {

@@ -250,8 +250,8 @@ const MainContent: React.FC = () => {
         setLoading(true);
         if (vscode) {
             vscode.postMessage({
-                type: 'user-message',
-                value: 'Plan approved. Please proceed.'
+                type: 'execute-plan',
+                value: planContent
             });
         }
     };

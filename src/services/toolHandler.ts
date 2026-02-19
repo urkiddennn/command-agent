@@ -36,6 +36,12 @@ export class ToolHandler {
         }
 
         try {
+            // ALWAYS propose change via Diff View (even for new files)
+            const approved = await this.proposeChange(filePath, content);
+            if (!approved) {
+                return `Action cancelled: User rejected the changes to ${filePath}.`;
+            }
+
             const data = Buffer.from(content, 'utf8');
             await vscode.workspace.fs.writeFile(fullPath, data);
             this.fileCache = null; // Invalidate cache
@@ -126,7 +132,7 @@ export class ToolHandler {
     }
 
     /**
-     * Searches for a text pattern across workspace files.
+     * Searches for a text pattern across workspace files using VS Code's native search (ripgrep).
      * Returns matching lines with file paths and line numbers.
      */
     public static async searchFiles(query: string, filePattern: string = '**/*'): Promise<string> {
@@ -137,37 +143,29 @@ export class ToolHandler {
         }
 
         try {
-            const files = await vscode.workspace.findFiles(
-                filePattern,
-                '**/node_modules/**,**/.git/**,**/dist/**,**/out/**',
-                50 // Max 50 files to search
-            );
-
             const results: string[] = [];
-            const regex = new RegExp(query, 'gi');
-            const root = workspaceFolders[0].uri.fsPath;
 
-            for (const file of files) {
-                try {
-                    const data = await vscode.workspace.fs.readFile(file);
-                    const content = Buffer.from(data).toString('utf8');
-                    const lines = content.split('\n');
+            // Use findTextInFiles for faster, low-memory search
+            // Cast to any because @types/vscode seems to be missing this stable API definition in the current setup
+            await (vscode.workspace as any).findTextInFiles(
+                { pattern: query, isCaseSensitive: false, isRegex: true },
+                {
+                    include: new vscode.RelativePattern(workspaceFolders[0], filePattern),
+                    exclude: '**/node_modules/**,**/.git/**,**/dist/**,**/out/**'
+                },
+                (result: any) => {
+                    // Start collecting results
+                    if (results.length >= 50) return;
 
-                    for (let i = 0; i < lines.length; i++) {
-                        if (regex.test(lines[i])) {
-                            const relativePath = path.relative(root, file.fsPath).replace(/\\/g, '/');
-                            results.push(`${relativePath}:${i + 1}: ${lines[i].trim()}`);
-                            regex.lastIndex = 0; // Reset regex state
-
-                            if (results.length >= 30) break; // Cap results
-                        }
+                    if (result.uri) { // result is TextSearchMatch
+                        const relativePath = vscode.workspace.asRelativePath(result.uri);
+                        // result.ranges[0] gives the first match on the line
+                        const lineNum = result.ranges[0].start.line + 1;
+                        const lineText = result.preview.text.trim();
+                        results.push(`${relativePath}:${lineNum}: ${lineText}`);
                     }
-
-                    if (results.length >= 30) break;
-                } catch {
-                    // Skip files that can't be read (binary, etc.)
                 }
-            }
+            );
 
             return results.length > 0
                 ? results.join('\n')
@@ -216,10 +214,89 @@ export class ToolHandler {
             }
 
             const newContent = content.replace(target, replacement);
+
+            // Propose change via Diff View
+            const approved = await this.proposeChange(filePath, newContent);
+            if (!approved) {
+                return `Action cancelled: User rejected the edits to ${filePath}.`;
+            }
+
             await vscode.workspace.fs.writeFile(fullPath, Buffer.from(newContent, 'utf8'));
             return `Successfully edited ${filePath}: replaced ${target.length} chars with ${replacement.length} chars.`;
         } catch (error: any) {
             return `Error editing file: ${error.message}`;
+        }
+    }
+
+    /**
+     * Helper to present a Diff View to the user and request approval.
+     */
+    private static async proposeChange(filePath: string, newContent: string): Promise<boolean> {
+        const uri = this.resolvePath(filePath);
+        if (!uri) return false;
+
+        // Create a temporary file for the new content to diff against
+        const tempUri = vscode.Uri.file(uri.fsPath + '.pending');
+
+        try {
+            await vscode.workspace.fs.writeFile(tempUri, Buffer.from(newContent, 'utf8'));
+
+            // Check if original file exists. If not, create an empty one for diffing.
+            let originalUri = uri;
+            let usingEmpty = false;
+            try {
+                await vscode.workspace.fs.stat(uri);
+            } catch {
+                // File doesn't exist. Create an empty temp file to diff against.
+                originalUri = vscode.Uri.file(uri.fsPath + '.empty');
+                await vscode.workspace.fs.writeFile(originalUri, new Uint8Array(0));
+                usingEmpty = true;
+            }
+
+            // Open the Diff Editor
+            await vscode.commands.executeCommand(
+                'vscode.diff',
+                originalUri,
+                tempUri,
+                `Proposed Changes: ${path.basename(filePath)}`
+            );
+
+            // Cleanup empty file if created
+            if (usingEmpty) {
+                // Defer deletion slightly or keep it until approval? 
+                // Actually, VS Code Diff needs the file to exist. We should clean it up in the finally block or after logic.
+                // We'll clean it up at the end.
+            }
+
+            // Prompt the user
+            // Actually, we can check if file exists.
+            let fileExists = false;
+            try { await vscode.workspace.fs.stat(uri); fileExists = true; } catch { }
+
+            const title = fileExists ? `Review proposed changes for '${path.basename(filePath)}'. Approve?` : `Review NEW file creation: '${path.basename(filePath)}'. Approve?`;
+
+            const selection = await vscode.window.showInformationMessage(
+                title,
+                { modal: false }, // Non-modal so they can interact with the diff
+                'Approve',
+                'Reject'
+            );
+
+            // Cleanup
+            await vscode.workspace.fs.delete(tempUri);
+            if (usingEmpty) {
+                try { await vscode.workspace.fs.delete(originalUri); } catch { }
+            }
+
+            // Attempt to close the diff editor (assuming it's still active)
+            await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+
+            return selection === 'Approve';
+        } catch (e) {
+            console.error('Error in proposeChange:', e);
+            // Ensure cleanup
+            try { await vscode.workspace.fs.delete(tempUri); } catch { }
+            return false;
         }
     }
 
@@ -243,7 +320,7 @@ export class ToolHandler {
         }
 
         console.log('ToolHandler: getAllFiles called (fetching fresh)');
-        const files = await vscode.workspace.findFiles('**/*', '**/node_modules/**|**/.git/**|**/dist/**|**/out/**|build/**|.svelte-kit/**');
+        const files = await vscode.workspace.findFiles('**/*', '**/node_modules/**|**/.git/**|**/dist/**|**/out/**|build/**|.svelte-kit/**', 2000);
 
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (!workspaceFolders || workspaceFolders.length === 0) {

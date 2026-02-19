@@ -89,13 +89,15 @@ const MainContent: React.FC = () => {
     const [allFiles, setAllFiles] = useState<FileSuggestion[]>([]);
     const [planContent, setPlanContent] = useState('');
 
-    const [showSystemLog, setShowSystemLog] = useState(false);
-
     // Tab State
     const [tabs, setTabs] = useState<{ id: string; title: string; messages: Message[] }[]>([
         { id: '1', title: 'New session 1', messages: [] }
     ]);
     const [activeTabId, setActiveTabId] = useState('1');
+
+    const [showSystemLog, setShowSystemLog] = useState(false);
+
+    const [tokenUsage, setTokenUsage] = useState({ input: 0, output: 0 });
 
     // Real-time timer that counts while loading
     useEffect(() => {
@@ -167,6 +169,14 @@ const MainContent: React.FC = () => {
                                 progress: responseData.progress
                             });
                         }
+
+                        if (responseData.tokens) {
+                            setTokenUsage(prev => ({
+                                input: prev.input + (responseData.tokens.input || 0),
+                                output: prev.output + (responseData.tokens.output || 0)
+                            }));
+                        }
+
                         return newMessages;
                     });
 
@@ -248,6 +258,7 @@ const MainContent: React.FC = () => {
     const handleProceed = () => {
         setWaitingForApproval(false);
         setLoading(true);
+        setAgentMode('Execution'); // Auto-switch mode
         if (vscode) {
             vscode.postMessage({
                 type: 'execute-plan',
@@ -364,8 +375,14 @@ const MainContent: React.FC = () => {
             <div className="footer">
                 <div className="footer-text">
                     AI may make mistakes. Double-check all generated code.
+                    {tokenUsage.input > 0 && (
+                        <span style={{ marginLeft: '10px', opacity: 0.7 }}>
+                            | Tokens: {tokenUsage.input} in / {tokenUsage.output} out
+                        </span>
+                    )}
                 </div>
             </div>
+
         </div>
     );
 };

@@ -261,7 +261,7 @@ CRITICAL: You are an AGENT, not a chat assistant.
         console.log(`CohereProvider: History synced. ${this.chatHistory.length} messages loaded.`);
     }
 
-    async generateResponse(shortPrompt: string, mode: string, model: string | undefined, onUpdate: (data: { text: string; thought?: string; progress?: any[]; isFinal?: boolean }) => void, onPlanReady: (plan: string) => void) {
+    async generateResponse(shortPrompt: string, mode: string, model: string | undefined, onUpdate: (data: { text: string; thought?: string; progress?: any[]; isFinal?: boolean; tokens?: { input: number, output: number } }) => void, onPlanReady: (plan: string) => void) {
         if (!this.client) {
             onUpdate({ text: 'Error: Please set your Cohere API Key in settings.', isFinal: true });
             return;
@@ -445,6 +445,22 @@ Structure your final response with clear sections using Markdown:
                                 toolCallsMap.set(index, existing);
                             }
                         }
+                    } else if (event.type === 'message-end') {
+                        if (event.delta?.usage) {
+                            const usage = event.delta.usage;
+                            debugLog(`CohereProvider (V2): Usage received - Input: ${usage.billedUnits?.inputTokens}, Output: ${usage.billedUnits?.outputTokens}`);
+                            // Send usage update
+                            onUpdate({
+                                text: fullText,
+                                thought: fullThought,
+                                progress: [...progressSteps],
+                                isFinal: false,
+                                tokens: {
+                                    input: usage.billedUnits?.inputTokens || 0,
+                                    output: usage.billedUnits?.outputTokens || 0
+                                }
+                            });
+                        }
                     }
                 }
 
@@ -487,12 +503,27 @@ Structure your final response with clear sections using Markdown:
 
                 // If tool calls are requested, execute them
                 if (toolCalls.length > 0) {
-                    for (const call of toolCalls) {
+                    for (let i = 0; i < toolCalls.length; i++) {
+                        const call = toolCalls[i];
+
                         // Check cancellation before each tool execution
                         if (this._cancelled) {
-                            progressSteps.push({ label: '⏹ Stopped by user', type: 'tool' });
-                            onUpdate({ text: fullText || '⏹ Generation stopped.', thought: fullThought, progress: [...progressSteps], isFinal: true });
-                            break;
+                            // If cancelled, we must still provide a response for the tool call to keep history valid
+                            debugLog(`CohereProvider (V2): Cancelled. Providing dummy response for ${call.function.name} (${call.id})`);
+                            this.chatHistory.push({
+                                role: 'tool',
+                                toolCallId: call.id,
+                                content: [{
+                                    type: 'text',
+                                    text: 'Tool execution cancelled by user.'
+                                }]
+                            });
+                            // Update UI to show stopped status if it's the first cancelled one
+                            if (i === 0 || !progressSteps.some(s => s.label === '⏹ Stopped by user')) {
+                                progressSteps.push({ label: '⏹ Stopped by user', type: 'tool' });
+                                onUpdate({ text: fullText || '⏹ Generation stopped.', thought: fullThought, progress: [...progressSteps], isFinal: true });
+                            }
+                            continue;
                         }
 
                         let result: string;
@@ -508,17 +539,8 @@ Structure your final response with clear sections using Markdown:
 
                                 try {
                                     // Robust attempt to fix unescaped newlines inside JSON string values
-                                    // This targets newlines found after a colon and quote, but before the next quote+comma or quote+bracket
                                     let sanitized = paramsString;
-
-                                    // Heuristic: Multi-line strings in JSON from LLMs often look like:
-                                    // "content": "some
-                                    // code
-                                    // here",
-                                    // We look for everything between the opening quote of a value and the closing quote.
-                                    // This regex is a bit complex but captures the pattern of a JSON value string.
                                     sanitized = sanitized.replace(/:(\s*)"([^"\\]*(?:\\.[^"\\]*)*)"/gs, (match: string, space: string, content: string) => {
-                                        // Replace literal newlines in the content part with \n
                                         const fixedContent = content.replace(/\n/g, '\\n').replace(/\r/g, '\\r');
                                         return `:${space}"${fixedContent}"`;
                                     });
@@ -649,6 +671,7 @@ Structure your final response with clear sections using Markdown:
                         }
 
                         // Add EACH tool result as an individual message (Strict V2 requirement)
+                        debugLog(`CohereProvider (V2): Pushing result for ${call.id}`);
                         this.chatHistory.push({
                             role: 'tool',
                             toolCallId: call.id,

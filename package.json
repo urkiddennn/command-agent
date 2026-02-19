@@ -2,7 +2,7 @@
   "name": "cohere-agent",
   "displayName": "Cohere Agent",
   "description": "AI Agent powered by Cohere Command R+",
-  "version": "0.0.12",
+  "version": "0.0.13",
   "publisher": "RichardBanguiz",
   "icon": "media/icon.png",
   "repository": {

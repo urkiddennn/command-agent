@@ -27,7 +27,12 @@ The agent has a direct line to your local environment:
 - **Terminal**: Run `npm`, `git`, or custom build scripts via `runCommand`.
 - **Search**: Perform deep pattern matching across files to find relevant logic.
 
-### 4. Dual View Layout
+### 4. Enterprise-Grade Security & Visibility
+- **Secure Storage**: API Keys are encrypted and stored in VS Code's native Secret Storage.
+- **Token Tracking**: Monitor your model usage in real-time with integrated token counting.
+- **Visual Verification**: All file modifications trigger a native Diff View, putting you in complete control of every change.
+
+### 5. Dual View Layout
 Access the agent from the **Activity Bar** for quick sidebar chats or use the **Panel View** at the bottom for an expanded engineering workspace.
 
 ## 🎨 Aesthetic: Engineering Industrialism

@@ -2,6 +2,19 @@
 
 All notable changes to the "Cohere Agent" extension will be documented in this file.
 
+## [0.0.223]
+
+### ✨ New Features
+- **Secure Storage**: API Keys now use VS Code's `SecretStorage` for enhanced security.
+- **Token Tracking**: Real-time Input/Output token usage display in the sidebar.
+- **Visual Diff View**: Built-in Diff Editor verification for all file edits and creations.
+- **Auto-Execution**: "Process" button now automatically starts the execution phase.
+
+### ⚡ Improvements & Fixes
+- **Performance**: Faster codebase search using `ripgrep` and optimized file listing.
+- **Package Size**: Significantly reduced extension size by cleaning stale build artifacts.
+- **Stability**: Fixed `BadRequestError` in Cohere V2 protocol and various lint issues.
+
 ## [0.0.121] - 2026-02-19
 
 ### ✨ New Features

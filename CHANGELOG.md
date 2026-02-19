@@ -1,6 +1,16 @@
 # Changelog
 
-All notable changes to the "Cohere Agent" extension will be documented in this file.
+
+## [0.0.27] - 2026-02-19
+
+### ✨ New Features
+- **Inline Assistant**: Edit code directly in the editor using the `Cohere: Inline Edit` command or by selecting text and choosing "Cohere: Edit with AI". Supports "refactor", "explain", and "edit" operations.
+
+### ⚡ Improvements & Fixes
+- **Stability**: Fixed a crash where the agent would fail if the plan callback was undefined during inline sessions.
+- **Package Size**: Reduced extension size by cleaning stale build artifacts.
+
+
 
 ## [0.0.223]
 

@@ -197,6 +197,57 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 			</body>
 			</html>`;
     }
+    public async handleInlineRequest(prompt: string, selection: string, operation: 'refactor' | 'explain' | 'edit') {
+        if (!selection) {
+            vscode.window.showErrorMessage('No code selected!');
+            return;
+        }
+
+        const systemPrompt = `You are an expert coding assistant.
+You are performing the following operation: ${operation.toUpperCase()}.
+User Prompt: ${prompt}
+
+CODE CONTEXT:
+\`\`\`
+${selection}
+\`\`\`
+
+INSTRUCTIONS:
+- If operation is 'refactor' or 'edit': Return ONLY the modified code. Do not include markdown formatting or explanations unless asked. The output will be directly diffed against the original.
+- If operation is 'explain': Return a concise explanation of the code.
+
+Produce the output now.`;
+
+        await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: `Cohere: ${operation === 'edit' ? 'Thinking...' : operation + 'ing...'}`,
+            cancellable: true
+        }, async (progress, token) => {
+            let fullText = '';
+            await this.cohere.generateResponse(systemPrompt, 'Execution', undefined, (update) => {
+                fullText = update.text;
+            }, undefined, true); // true for "inline" mode if we add that flag, or just use standard generation with prompt engineering
+
+            // Post-processing
+            if (operation === 'explain') {
+                // Show in a new output channel or information message
+                const channel = vscode.window.createOutputChannel("Cohere Explanation");
+                channel.appendLine(fullText);
+                channel.show();
+            } else {
+                // Edit/Refactor -> Open Diff
+                // Extract code block if wrapped in markdown
+                const codeBlockRegex = /```[\s\S]*?\n([\s\S]*?)\n```/;
+                const match = fullText.match(codeBlockRegex);
+                const cleanCode = match ? match[1] : fullText;
+
+                const editor = vscode.window.activeTextEditor;
+                if (editor) {
+                    await ToolHandler.applyEditWithDiff(editor.document.uri, cleanCode, editor.selection);
+                }
+            }
+        });
+    }
 }
 
 function getNonce() {

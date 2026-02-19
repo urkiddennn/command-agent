@@ -261,7 +261,7 @@ CRITICAL: You are an AGENT, not a chat assistant.
         console.log(`CohereProvider: History synced. ${this.chatHistory.length} messages loaded.`);
     }
 
-    async generateResponse(shortPrompt: string, mode: string, model: string | undefined, onUpdate: (data: { text: string; thought?: string; progress?: any[]; isFinal?: boolean; tokens?: { input: number, output: number } }) => void, onPlanReady: (plan: string) => void) {
+    async generateResponse(shortPrompt: string, mode: string, model: string | undefined, onUpdate: (data: { text: string; thought?: string; progress?: any[]; isFinal?: boolean; tokens?: { input: number, output: number } }) => void, onPlanReady?: (plan: string) => void, isInline: boolean = false) {
         if (!this.client) {
             onUpdate({ text: 'Error: Please set your Cohere API Key in settings.', isFinal: true });
             return;
@@ -388,7 +388,7 @@ Structure your final response with clear sections using Markdown:
                 const streamParams: any = {
                     model: effectiveModel,
                     messages: this.chatHistory,
-                    tools: this.TOOLS as any,
+                    tools: isInline ? [] : this.TOOLS as any,
                 };
 
                 // Debug: Log history to check for empty messages
@@ -609,7 +609,9 @@ Structure your final response with clear sections using Markdown:
                                     if ((parameters.filePath as string).toLowerCase().endsWith('planning.md')) {
                                         planDetected = true;
                                         // Send plan content to UI
-                                        onPlanReady(parameters.content as string);
+                                        if (onPlanReady) {
+                                            onPlanReady(parameters.content as string);
+                                        }
                                     }
                                     break;
                                 case 'listDirectory':

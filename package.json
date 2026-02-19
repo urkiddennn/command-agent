@@ -2,7 +2,7 @@
   "name": "cohere-agent",
   "displayName": "Cohere Agent",
   "description": "AI Agent powered by Cohere Command R+",
-  "version": "0.0.223",
+  "version": "0.0.27",
   "publisher": "RichardBanguiz",
   "icon": "media/icon.png",
   "repository": {
@@ -68,6 +68,55 @@
       {
         "command": "cohere-agent.ask",
         "title": "Cohere Agent: Ask something"
+      },
+      {
+        "command": "cohere-agent.inlineQuery",
+        "title": "Cohere: Inline Edit"
+      },
+      {
+        "command": "cohere-agent.explain",
+        "title": "Cohere: Explain Code"
+      },
+      {
+        "command": "cohere-agent.refactor",
+        "title": "Cohere: Refactor Code"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "cohere-agent.inlineQuery",
+        "key": "ctrl+shift+i",
+        "mac": "cmd+shift+i",
+        "when": "editorTextFocus"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "submenu": "cohere-agent.submenu",
+          "group": "navigation"
+        }
+      ],
+      "cohere-agent.submenu": [
+        {
+          "command": "cohere-agent.explain",
+          "group": "1_modification"
+        },
+        {
+          "command": "cohere-agent.refactor",
+          "group": "1_modification"
+        },
+        {
+          "command": "cohere-agent.inlineQuery",
+          "group": "1_modification"
+        }
+      ]
+    },
+    "submenus": [
+      {
+        "id": "cohere-agent.submenu",
+        "label": "Cohere Agent",
+        "icon": "media/icon.svg"
       }
     ],
     "configuration": {

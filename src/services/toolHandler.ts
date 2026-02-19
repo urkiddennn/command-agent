@@ -231,22 +231,49 @@ export class ToolHandler {
     /**
      * Helper to present a Diff View to the user and request approval.
      */
-    private static async proposeChange(filePath: string, newContent: string): Promise<boolean> {
+    public static async proposeChange(filePath: string, newContent: string, selection?: vscode.Selection | vscode.Range): Promise<boolean> {
         const uri = this.resolvePath(filePath);
         if (!uri) return false;
+
+        // READ existing content first
+        let originalContent = '';
+        try {
+            const data = await vscode.workspace.fs.readFile(uri);
+            originalContent = Buffer.from(data).toString('utf8');
+        } catch {
+            // File might not exist
+        }
+
+        let finalContentForDiff = newContent;
+
+        // If selection is provided, we need to construct the full file content with the replacement
+        if (selection && originalContent) {
+            const document = await vscode.workspace.openTextDocument(uri);
+            // Verify selection is valid within document
+
+            // To show a proper diff of the WHOLE file with just the range changed:
+            // 1. Get text before selection
+            // 2. Get text after selection
+            // 3. Construct new full text
+
+            // However, verify selection is valid within document
+            const range = new vscode.Range(selection.start, selection.end);
+            const textBefore = document.getText(new vscode.Range(new vscode.Position(0, 0), range.start));
+            const textAfter = document.getText(new vscode.Range(range.end, document.lineAt(document.lineCount - 1).range.end));
+
+            finalContentForDiff = textBefore + newContent + textAfter;
+        }
 
         // Create a temporary file for the new content to diff against
         const tempUri = vscode.Uri.file(uri.fsPath + '.pending');
 
         try {
-            await vscode.workspace.fs.writeFile(tempUri, Buffer.from(newContent, 'utf8'));
+            await vscode.workspace.fs.writeFile(tempUri, Buffer.from(finalContentForDiff, 'utf8'));
 
             // Check if original file exists. If not, create an empty one for diffing.
             let originalUri = uri;
             let usingEmpty = false;
-            try {
-                await vscode.workspace.fs.stat(uri);
-            } catch {
+            if (!originalContent) {
                 // File doesn't exist. Create an empty temp file to diff against.
                 originalUri = vscode.Uri.file(uri.fsPath + '.empty');
                 await vscode.workspace.fs.writeFile(originalUri, new Uint8Array(0));
@@ -261,21 +288,11 @@ export class ToolHandler {
                 `Proposed Changes: ${path.basename(filePath)}`
             );
 
-            // Cleanup empty file if created
-            if (usingEmpty) {
-                // Defer deletion slightly or keep it until approval? 
-                // Actually, VS Code Diff needs the file to exist. We should clean it up in the finally block or after logic.
-                // We'll clean it up at the end.
-            }
-
             // Prompt the user
-            // Actually, we can check if file exists.
-            let fileExists = false;
-            try { await vscode.workspace.fs.stat(uri); fileExists = true; } catch { /* file does not exist */ }
-
+            let fileExists = !usingEmpty;
             const title = fileExists ? `Review proposed changes for '${path.basename(filePath)}'. Approve?` : `Review NEW file creation: '${path.basename(filePath)}'. Approve?`;
 
-            const selection = await vscode.window.showInformationMessage(
+            const userSelection = await vscode.window.showInformationMessage(
                 title,
                 { modal: false }, // Non-modal so they can interact with the diff
                 'Approve',
@@ -291,12 +308,48 @@ export class ToolHandler {
             // Attempt to close the diff editor (assuming it's still active)
             await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 
-            return selection === 'Approve';
+            // If approved AND it was a selection-based edit, we need to ensure we apply the FULL content provided in finalContentForDiff
+            // actually, the caller (editFile) expects us to return true/false, and IT writes the file.
+            // But for inline chat which calls applyEditWithDiff directly, we might need a helper.
+
+            return userSelection === 'Approve';
         } catch (e) {
             console.error('Error in proposeChange:', e);
             // Ensure cleanup
             try { await vscode.workspace.fs.delete(tempUri); } catch { /* ignore cleanup error */ }
             return false;
+        }
+    }
+
+    /**
+     * Applies a diff-verified edit to a file (full or selection).
+     * This is a public wrapper for inline chat use.
+     */
+    public static async applyEditWithDiff(uri: vscode.Uri, newText: string, selection?: vscode.Selection | vscode.Range): Promise<void> {
+        // We reuse the logic in proposeChange but we need to handle the actual writing if approved,
+        // since proposeChange only returns boolean.
+
+        // 1. Construct full new content if selection
+        let finalContent = newText;
+        if (selection) {
+            try {
+                const document = await vscode.workspace.openTextDocument(uri);
+                const range = new vscode.Range(selection.start, selection.end);
+                const textBefore = document.getText(new vscode.Range(new vscode.Position(0, 0), range.start));
+                const textAfter = document.getText(new vscode.Range(range.end, document.lineAt(document.lineCount - 1).range.end));
+                finalContent = textBefore + newText + textAfter;
+            } catch (e) {
+                console.error('Error reading document for selection apply:', e);
+                return;
+            }
+        }
+
+        const approved = await this.proposeChange(uri.fsPath, finalContent); // Pass the FULL content to proposeChange
+        if (approved) {
+            await vscode.workspace.fs.writeFile(uri, Buffer.from(finalContent, 'utf8'));
+            vscode.window.showInformationMessage('Changes applied successfully.');
+        } else {
+            vscode.window.showInformationMessage('Changes rejected.');
         }
     }
 

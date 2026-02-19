@@ -7,6 +7,7 @@
 ## 🚀 Core Capabilities
 
 - **Autonomous Engineering**: Executes precise filesystem modifications, runs terminal commands, and audits code architectures.
+- **Inline Assistant**: Select code and ask Cohere to refactor, explain, or edit it directly in the editor without leaving valid syntax.
 - **Advanced Reasoning**: Leverages Cohere's reasoning-optimized models (like `command-r7b`) with real-time "Thinking" visualization.
 - **Tool-Augmented Intelligence**: Seamlessly uses tools like `readFile`, `writeFile`, `editFile`, `runCommand`, and `searchFiles` to implement solutions.
 - **High-Density UI**: Features a specialized "Engineering Industrialism" aesthetic (the Kiro.co design system) for professional developer productivity.
@@ -34,6 +35,9 @@ The agent has a direct line to your local environment:
 
 ### 5. Dual View Layout
 Access the agent from the **Activity Bar** for quick sidebar chats or use the **Panel View** at the bottom for an expanded engineering workspace.
+
+### 6. Inline Assistant
+Access AI directly in your editor. Select any code and use the context menu or command palette to refactor, explain, or edit logic without switching context.
 
 ## 🎨 Aesthetic: Engineering Industrialism
 Designed with a high-density, high-contrast aesthetic:

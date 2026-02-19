@@ -11,7 +11,6 @@
 - **Package Size**: Reduced extension size by cleaning stale build artifacts.
 
 
-
 ## [0.0.223]
 
 ### ✨ New Features

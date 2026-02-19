@@ -289,7 +289,7 @@ export class ToolHandler {
             );
 
             // Prompt the user
-            let fileExists = !usingEmpty;
+            const fileExists = !usingEmpty;
             const title = fileExists ? `Review proposed changes for '${path.basename(filePath)}'. Approve?` : `Review NEW file creation: '${path.basename(filePath)}'. Approve?`;
 
             const userSelection = await vscode.window.showInformationMessage(

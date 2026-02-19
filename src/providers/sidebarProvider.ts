@@ -222,7 +222,7 @@ Produce the output now.`;
             location: vscode.ProgressLocation.Notification,
             title: `Cohere: ${operation === 'edit' ? 'Thinking...' : operation + 'ing...'}`,
             cancellable: true
-        }, async (progress, token) => {
+        }, async (_progress, _token) => {
             let fullText = '';
             await this.cohere.generateResponse(systemPrompt, 'Execution', undefined, (update) => {
                 fullText = update.text;

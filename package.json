@@ -13,7 +13,9 @@
     "vscode": "^1.80.0"
   },
   "categories": [
-    "Other"
+    "Programming Languages",
+    "Machine Learning",
+    "Education"
   ],
   "activationEvents": [],
   "main": "./dist/extension.js",

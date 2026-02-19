@@ -1,20 +1,6 @@
 import * as vscode from 'vscode';
-import * as fs from 'fs';
-import * as path from 'path';
 import { CohereProvider } from '../services/cohereProvider.js';
 import { ToolHandler } from '../services/toolHandler.js';
-
-function debugLog(message: string) {
-    if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
-        const root = vscode.workspace.workspaceFolders[0].uri.fsPath;
-        const logPath = path.join(root, 'agent_debug.log');
-        try {
-            fs.appendFileSync(logPath, `[SidebarProvider] [${new Date().toISOString()}] ${message}\n`);
-        } catch (e) {
-            console.error('Failed to write to debug log:', e);
-        }
-    }
-}
 
 export class SidebarProvider implements vscode.WebviewViewProvider {
     private cohere: CohereProvider;
@@ -47,11 +33,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         // Load API Key from secure storage
         let apiKey = '';
         try {
-            debugLog('Attempting to retrieve API key from secrets...');
             apiKey = await this._context.secrets.get('cohereApiKey') || '';
-            debugLog(`Retrieved API key from secrets. Length: ${apiKey.length}`);
         } catch (e) {
-            debugLog(`Error loading API key from secrets: ${e}`);
             console.error('Error loading API key from secrets:', e);
         }
 
@@ -74,7 +57,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         webviewView.webview.onDidReceiveMessage(async (data) => {
             switch (data.type) {
                 case 'webview-ready': {
-                    debugLog('Webview ready signal received');
+                    console.log('Cohere Agent: Webview ready signal received');
                     // When a view is ready, send it the current buffer or persistent history
                     const settings = this.cohere.getSettings();
                     this._loadHistory(webviewView, settings.memoryType);
@@ -133,12 +116,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                     break;
                 }
                 case 'update-settings': {
-                    debugLog(`Received update-settings. Storing key length: ${data.value.apiKey?.length}`);
                     try {
                         await this._context.secrets.store('cohereApiKey', data.value.apiKey);
-                        debugLog('API Key stored in secrets successfully.');
                     } catch (err) {
-                        debugLog(`Failed to store API key in secrets: ${err}`);
                         console.error('SidebarProvider: Failed to store API key in secrets:', err);
                     }
                     this.cohere.setSettings(data.value.apiKey, data.value.memoryType);

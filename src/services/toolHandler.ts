@@ -271,7 +271,7 @@ export class ToolHandler {
             // Prompt the user
             // Actually, we can check if file exists.
             let fileExists = false;
-            try { await vscode.workspace.fs.stat(uri); fileExists = true; } catch { }
+            try { await vscode.workspace.fs.stat(uri); fileExists = true; } catch { /* file does not exist */ }
 
             const title = fileExists ? `Review proposed changes for '${path.basename(filePath)}'. Approve?` : `Review NEW file creation: '${path.basename(filePath)}'. Approve?`;
 
@@ -285,7 +285,7 @@ export class ToolHandler {
             // Cleanup
             await vscode.workspace.fs.delete(tempUri);
             if (usingEmpty) {
-                try { await vscode.workspace.fs.delete(originalUri); } catch { }
+                try { await vscode.workspace.fs.delete(originalUri); } catch { /* ignore cleanup error */ }
             }
 
             // Attempt to close the diff editor (assuming it's still active)
@@ -295,7 +295,7 @@ export class ToolHandler {
         } catch (e) {
             console.error('Error in proposeChange:', e);
             // Ensure cleanup
-            try { await vscode.workspace.fs.delete(tempUri); } catch { }
+            try { await vscode.workspace.fs.delete(tempUri); } catch { /* ignore cleanup error */ }
             return false;
         }
     }
